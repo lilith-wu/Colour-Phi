@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Experiment</title>
+    <script src="https://unpkg.com/jspsych@7.3.4"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-virtual-chinrest@2.0.3"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-canvas-button-response@1.1.3"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-image-keyboard-response@1.1.3"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-fullscreen@1.2.1"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.3"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-canvas-keyboard-response@1.1.3"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-survey-multi-choice@1.1.3"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-html-button-response@1.2.0"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-survey-text@1.1.3"></script>
+    <link rel="stylesheet" href="https://unpkg.com/jspsych@7.3.4/css/jspsych.css" />
+    <style>
+      /* ---- colours ---- */
+      body {
+        background-color: #2b2b2b;
+        color: #ffffff;
+        font-family: 'Helvetica';
+        font-size: 20px !important;
+      }
+
+      /* ---- survey ---- */
+      .jspsych-survey-text-question input,
+      .jspsych-survey-text-question textarea {
+        background-color: #3b3b3b;
+        color: #ffffff;
+        border: 1px solid #ccc;
+      }
+
+      /* ---- buttons ---- */
+      .jspsych-btn {
+        background-color: #2b2b2b !important;
+        color: #ffffff !important;
+        border: 2px solid rgb(99, 99, 99) !important;
+        padding: 16px 32px !important;
+        font-size: 18px;
+        cursor: pointer;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center;
+        box-sizing: border-box;
+      }
+      .jspsych-btn:hover {
+        background-color: #3b3b3b !important;
+        border-color: #ffffff !important;
+      }
+      #jspsych-canvas-button-response-btngroup {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        gap: 12px;
+        margin-top: 10px !important;
+      }
+
+      /* ---- virtual-chinrest blind-spot*/
+      #distance-report {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        margin-top: 10px;
+      }
+
+      /* ---- progress bar ---- */
+      #jspsych-progressbar-container {
+        background-color: #272727; /* matches your page background */
+        border-color: #3b3b3b; /* optional: border around the whole bar */
+      }
+      #jspsych-progressbar-outer {
+        background-color: #272727; /* the unfilled part of the bar */
+        border: 1px solid #3b3b3b; /* keep a subtle border so it's still visible against your bg */
+      }
+      .jspsych-progressbar-inner {
+        background-color: #3b3b3b; /* the "filled" progress color */
+      }
+
+    </style>
+  </head>
+  <body></body>
+  <script>
+      // =========================================================================
+      // Initialize, define pixels per degree, define canvas size, define colors
+      // =========================================================================
+      const jsPsych = initJsPsych({
+        show_progress_bar: true,
+        on_finish: function(){
+          console.log('Experiment finished. Collected data:', jsPsych.data.get().json());
+        }
+      });
+
+      let timeline;
+
+      function makeTimeline() {
+        var timeline = [];
+        const DEG = 100;
+        var squareSize = 0.9 * DEG;
+        let selectedCondition;
+        let shape;
+        let color;
+        let savedScale;
+
+        // =========================================================================
+        // Welcome + fullscreen + chinrest
+        // =========================================================================
+        var instructions1 = {
+          type: jsPsychHtmlKeyboardResponse,
+          stimulus: `
+            <p>Welcome to the experiment!</p>
+            <p>We will first quickly measure your screen size and how far you are sitting.</p>
+            <p>Press any key to begin.</p>
+          `,
+        };
+        timeline.push(instructions1);
+
+        timeline.push({
+          type: jsPsychFullscreen,
+          fullscreen_mode: true
+        });
+        var chinrest = {
+          type: jsPsychVirtualChinrest,
+          blind_spot_sizes: [20],
+          resize_units: 'deg',
+          pixels_per_unit: DEG
+        };
+        timeline.push(chinrest);
+
+        // =========================================================================
+        // Select conditions for the task
+        // =========================================================================
+        var stimuli_conditions = [
+          {condition_name: 'Colour Phi Illusion',},
+          {condition_name: 'Baseline'},
+          {condition_name: 'Phi Motion'},
+        ];
+
+        var select_condition = {
+          type: jsPsychHtmlButtonResponse,
+          stimulus: `<p>Select a condition:</p>
+                    <p>(note: this is not part of the actual experiment)</p>`,
+          choices: stimuli_conditions.map(c => c.condition_name),
+          on_start: function() {
+            const contentEl = document.querySelector('.jspsych-content');
+            if (contentEl) {
+              savedScale = contentEl.style.transform;
+              contentEl.style.transform = 'none';
+            }
+          },
+          on_finish: function(data) {
+            selectedCondition = stimuli_conditions[data.response].condition_name;
+            jsPsych.data.addProperties({ condition: selectedCondition });
+
+            var shape_conditions = [
+              {shape_name: 'square',},
+              {shape_name: 'triangle',}
+            ];
+            shape = jsPsych.randomization.sampleWithoutReplacement(shape_conditions, 1)[0].shape_name;
+            jsPsych.data.addProperties({ shape: shape });
+
+            var colour_conditions;
+            if (selectedCondition === "Phi Motion") {
+              colour_conditions = [
+                {color_name: 'red',},
+                {color_name: 'blue',},
+                {color_name: 'green',},
+                {color_name: 'yellow',}
+              ];
+            } else {
+              colour_conditions = [
+                {color_name: 'red_blue',},
+                {color_name: 'green_yellow',}
+              ];
+            }
+            color = jsPsych.randomization.sampleWithoutReplacement(colour_conditions, 1)[0].color_name;
+            jsPsych.data.addProperties({ color: color });
+
+
+            jsPsych.data.addProperties({ subj_id: 'demo_participant' });
+
+            const contentEl = document.querySelector('.jspsych-content');
+            if (contentEl && savedScale) {
+              contentEl.style.transform = savedScale;
+            }
+          }
+        };
+        timeline.push(select_condition);
+
+        // =========================================================================
+        // Instructions regarding how to complete the task + stimuli
+        // =========================================================================
+        var instructions2 = {
+          type: jsPsychHtmlKeyboardResponse,
+          stimulus: `
+              <p>In this experiment, we will show you a video on the screen for a brief moment. </p>
+              <p>You will need to pay close attention: the entire video will last less than a second!</p>
+              <p>You will then be asked to describe what you saw in detail.</p>
+              <p>We will first show you a reference image to help you focus, press any key to continue.</p>
+          `,
+          on_start: function() {
+            const contentEl = document.querySelector('.jspsych-content');
+            if (contentEl) {
+              savedScale = contentEl.style.transform;
+              contentEl.style.transform = 'none';
+            }
+          },
+          on_finish: function() {
+            const contentEl = document.querySelector('.jspsych-content');
+            if (contentEl && savedScale) {
+              contentEl.style.transform = savedScale;
+            }
+          }
+        };
+        timeline.push(instructions2);
+
+        // =========================================================================
+        // Reference rectangle trial
+        // =========================================================================
+        function drawReference(canvas) {
+          var ctx = canvas.getContext("2d");
+          var centerX = canvas.width / 2;
+          var centerY = canvas.height / 2;
+          ctx.save();
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.translate(centerX, centerY);
+
+          var rectW = 3.6 * DEG + squareSize + 0.2 * DEG;
+          var rectH = squareSize + 0.2 * DEG;
+
+          ctx.fillStyle = "#3b3b3b";
+          ctx.fillRect(-rectW / 2, -rectH / 2, rectW, rectH);
+          ctx.restore();
+        };
+
+        var instructions3 = {
+          type: jsPsychCanvasButtonResponse,
+          stimulus: drawReference,
+          choices: ['Continue'],
+          canvas_size: [400, 500],
+          on_load: function() {
+            const overlay = document.createElement('div');
+            overlay.id = 'reference-prompt-overlay';
+            overlay.style.position = 'fixed';
+            overlay.style.top = '25%';
+            overlay.style.left = '0';
+            overlay.style.width = '100%';
+            overlay.style.textAlign = 'center';
+            overlay.style.fontSize = '20px';
+            overlay.style.fontFamily = 'Helvetica';
+            overlay.style.color = '#ffffff';
+            overlay.style.pointerEvents = 'none';
+            overlay.innerHTML = `
+              <p>The grey rectangle indicates the area where the video will be displayed.</p>
+              <p>Once you press "continue", the video will start.</p>
+            `;
+            document.body.appendChild(overlay);
+
+            const btnGroup = document.querySelector('#jspsych-canvas-button-response-btngroup');
+            if (btnGroup) {
+              const btn = btnGroup.querySelector('.jspsych-btn');
+              if (btn) {
+                btn.style.position = 'fixed';
+                btn.style.top = '90%';
+                btn.style.left = '50%';
+                btn.style.transform = 'translateX(-50%)';
+                btn.style.fontSize = '45px';
+                btn.style.fontFamily = 'Helvetica';
+                btn.style.zIndex = '1000';
+                btn.style.setProperty('padding', '45px 45px', 'important');
+              }
+            }
+          },
+          on_finish: function() {
+            const overlay = document.getElementById('reference-prompt-overlay');
+            if (overlay) overlay.remove();
+          },
+          post_trial_gap: 1000,
+        };
+        timeline.push(instructions3);
+
+        // =========================================================================
+        // Shared helpers — used by both the live animation and the thumbnails
+        // =========================================================================
+        function getCurrentColorSet() {
+          if (color === "red_blue") {
+            return [
+              { color: "rgba(255, 86, 53, 1.0)" },
+              { color: "rgba(255, 72, 149, 1.0)" },
+              { color: "rgba(205, 93, 255, 1.0)" },
+              { color: "rgba(6, 147, 255, 1.0)" },
+            ];
+          } else if (color === "green_yellow") {
+            return [
+              { color: "rgba(184, 137, 0, 1.0)" },
+              { color: "rgba(154, 148, 0, 1.0)" },
+              { color: "rgba(116, 158, 0, 1.0)" },
+              { color: "rgba(20, 168, 0, 1.0)" },
+            ];
+          } else if (color === "red") {
+            return [
+              { color: "rgba(255, 86, 53, 1.0)" },
+              { color: "rgba(255, 86, 53, 1.0)" },
+              { color: "rgba(255, 86, 53, 1.0)" },
+              { color: "rgba(255, 86, 53, 1.0)" },
+            ];
+          } else if (color === "blue") {
+            return [
+              { color: "rgba(6, 147, 255, 1.0)" },
+              { color: "rgba(6, 147, 255, 1.0)" },
+              { color: "rgba(6, 147, 255, 1.0)" },
+              { color: "rgba(6, 147, 255, 1.0)" },
+            ];
+          } else if (color === "yellow") {
+            return [
+              { color: "rgba(20, 168, 0, 1.0)" },
+              { color: "rgba(20, 168, 0, 1.0)" },
+              { color: "rgba(20, 168, 0, 1.0)" },
+              { color: "rgba(20, 168, 0, 1.0)" },
+            ];
+          } else if (color === "green") {
+            return [
+              { color: "rgba(184, 137, 0, 1.0)" },
+              { color: "rgba(184, 137, 0, 1.0)" },
+              { color: "rgba(184, 137, 0, 1.0)" },
+              { color: "rgba(184, 137, 0, 1.0)" },
+            ];
+          }
+        }
+
+        function drawShapeAt(ctx, x, y, colorStr, shapeType) {
+          ctx.fillStyle = colorStr;
+          ctx.strokeStyle = "#1a1a2e";
+          ctx.lineWidth = 2;
+
+          if (shapeType === "square") {
+            var drawX = x - (squareSize / 2);
+            var drawY = y - (squareSize / 2);
+            ctx.fillRect(drawX, drawY, squareSize, squareSize);
+            ctx.strokeRect(drawX, drawY, squareSize, squareSize);
+          } else if (shapeType === "triangle") {
+            var t = squareSize * 1.5197;
+            var h = squareSize * 1.316;
+            ctx.beginPath();
+            ctx.moveTo(x, y - h / 2);
+            ctx.lineTo(x + t / 2, y + h / 2);
+            ctx.lineTo(x - t / 2, y + h / 2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+          }
+        }
+
+        // =========================================================================
+        // Thumbnail generation
+        // =========================================================================
+        function drawFrameReferenceStack(canvas, frames, colors) {
+          var ctx = canvas.getContext("2d");
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          var boxW = 3.6 * DEG + squareSize + 0.6 * DEG;
+          var boxH = squareSize + 0.6 * DEG;
+          var gap = 0.4 * DEG;
+          var numBoxes = frames.length;
+          var totalHeight = numBoxes * boxH + (numBoxes - 1) * gap;
+          var startY = (canvas.height - totalHeight) / 2;
+          var boxLeftX = (canvas.width - boxW) / 2;
+
+          for (var i = 0; i < numBoxes; i++) {
+            var boxTopY = startY + i * (boxH + gap);
+            var boxCenterX = boxLeftX + boxW / 2;
+            var boxCenterY = boxTopY + boxH / 2;
+
+            ctx.strokeStyle = "#cccccc";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(boxLeftX, boxTopY, boxW, boxH);
+
+            var frame = frames[i];
+            if (!frame.blank) {
+              var shapeX = boxCenterX + frame.x;
+              var shapeY = boxCenterY + frame.y;
+              drawShapeAt(ctx, shapeX, shapeY, colors[i].color, shape);
+            }
+          }
+        }
+
+        function renderReferenceThumbnail(frames, colors, canvasW, canvasH) {
+          var offCanvas = document.createElement('canvas');
+          offCanvas.width = canvasW;
+          offCanvas.height = canvasH;
+          drawFrameReferenceStack(offCanvas, frames, colors);
+          return offCanvas.toDataURL('image/png');
+        }
+
+        function getIllusionReferenceFrames() {
+          return [
+            { x: -1.8 * DEG, y: 0 },
+            { blank: true },
+            { blank: true },
+            { x: 1.8 * DEG, y: 0 },
+          ];
+        }
+
+        function getIllusionReferenceColors(fullColors) {
+          return [
+            fullColors[0],
+            { color: null },
+            { color: null },
+            fullColors[3],
+          ];
+        }
+
+        function getDiscreteReferenceColors(fullColors) {
+          return [
+            fullColors[0],
+            fullColors[0],
+            fullColors[3],
+            fullColors[3],
+          ];
+        }
+
+        function buildThumbnails() {
+          var fullColors = getCurrentColorSet();
+          var boxW = 3.6 * DEG + squareSize + 0.6 * DEG;
+          var boxH = squareSize + 0.6 * DEG;
+          var gap = 0.4 * DEG;
+          var thumbW = boxW + 80;
+          var thumbH = 4 * boxH + 3 * gap + 40;
+
+          var illusionThumb = renderReferenceThumbnail(
+            getIllusionReferenceFrames(),
+            getIllusionReferenceColors(fullColors),
+            thumbW, thumbH
+          );
+
+          var discreteThumb = renderReferenceThumbnail(
+            [
+              { x: -1.8 * DEG, y: 0 },
+              { x: -0.6 * DEG, y: 0 },
+              { x: 0.6 * DEG, y: 0 },
+              { x: 1.8 * DEG, y: 0 },
+            ],
+            getDiscreteReferenceColors(fullColors),
+            thumbW, thumbH
+          );
+
+          var gradedThumb = renderReferenceThumbnail(
+            [
+              { x: -1.8 * DEG, y: 0 },
+              { x: -0.6 * DEG, y: 0 },
+              { x: 0.6 * DEG, y: 0 },
+              { x: 1.8 * DEG, y: 0 },
+            ],
+            fullColors,
+            thumbW, thumbH
+          );
+
+          return { illusionThumb: illusionThumb, gradedThumb: gradedThumb, discreteThumb: discreteThumb };
+        }
+
+        // =========================================================================
+        // Live animation
+        // =========================================================================
+
+        var frameLog = [];
+
+        function getFramesForCondition(condition) {
+          switch (condition) {
+            case "Colour Phi Illusion":
+              return [
+                { x: -1.8 * DEG, y: 0, duration: 150 },
+                { blank: true, duration: 25 },
+                { blank: true, duration: 25 },
+                { x: 1.8 * DEG, y: 0, duration: 150 },
+              ];
+            case "Baseline":
+              return [
+                { x: -1.8 * DEG, y: 0, duration: 150 },
+                { blank: true, duration: 250 },
+                { blank: true, duration: 250 },
+                { x: 1.8 * DEG, y: 0, duration: 150 },
+              ];
+            case "Phi Motion":
+              return [
+                { x: -1.8 * DEG, y: 0, duration: 150 },
+                { blank: true, duration: 25 },
+                { blank: true, duration: 25 },
+                { x: 1.8 * DEG, y: 0, duration: 150 },
+              ];
+            default:
+              console.error('getFramesForCondition: unrecognized condition', condition);
+              return [];
+          }
+        }
+
+        function getTrialDuration(condition) {
+          return getFramesForCondition(condition).reduce(function(sum, f) { return sum + f.duration; }, 0);
+        }
+
+        function playCenteredFrames(canvas) {
+          frameLog = []; // reset in case this trial ever runs more than once
+          var ctx = canvas.getContext("2d");
+          var centerX = canvas.width / 2;
+          var centerY = canvas.height / 2;
+          ctx.translate(centerX, centerY);
+
+          var customFrames = getFramesForCondition(selectedCondition);
+          var customColors = getCurrentColorSet();
+
+          var currentFrameIndex = 0;
+          var animationId;
+          var currentFrameColor = customColors[currentFrameIndex].color;
+
+          var animationStartTime = null;
+          var lastFrameSwitchTime = null;
+
+          function drawFrame(rafTimestamp) {
+            if (animationStartTime === null) {
+              animationStartTime = rafTimestamp;
+              lastFrameSwitchTime = rafTimestamp;
+            }
+
+            var timeElapsedSinceSwitch = rafTimestamp - lastFrameSwitchTime;
+            var currentFrameConfig = customFrames[currentFrameIndex];
+
+            if (timeElapsedSinceSwitch >= currentFrameConfig.duration) {
+              currentFrameIndex++;
+              lastFrameSwitchTime = rafTimestamp;
+
+              if (currentFrameIndex >= customFrames.length) {
+                cancelAnimationFrame(animationId);
+                return;
+              }
+              currentFrameConfig = customFrames[currentFrameIndex];
+              currentFrameColor = customColors[currentFrameIndex].color;
+            }
+
+            ctx.clearRect(-centerX, -centerY, canvas.width, canvas.height);
+
+            if (!currentFrameConfig.blank) {
+              if (shape === "square") {
+                drawShapeAt(ctx, currentFrameConfig.x, currentFrameConfig.y, currentFrameColor, "square");
+              } else if (shape === "triangle") {
+                drawShapeAt(ctx, currentFrameConfig.x, currentFrameConfig.y, currentFrameColor, "triangle");
+              }
+            }
+
+            frameLog.push({
+              raf_time: rafTimestamp,
+              frame_index: currentFrameIndex,
+              is_blank: !!currentFrameConfig.blank
+            });
+
+            animationId = requestAnimationFrame(drawFrame);
+          }
+          animationId = requestAnimationFrame(drawFrame);
+        }
+
+        var custom_animation_trial = {
+          type: jsPsychCanvasKeyboardResponse,
+          canvas_size: [400, 500],
+          stimulus: playCenteredFrames,
+          choices: "NO_KEYS",
+          trial_duration: function() { return getTrialDuration(selectedCondition); },
+          post_trial_gap: 1000,
+          on_finish: function(data) {
+            var frameDurations = frameLog.map(function(frame, i) {
+              return {
+                frame_index: frame.frame_index,
+                is_blank: frame.is_blank,
+                duration_ms: i === 0 ? null : frame.raf_time - frameLog[i - 1].raf_time
+              };
+            });
+            data.frame_durations = JSON.stringify(frameDurations);
+
+            var deltas = frameDurations
+              .map(function(f) { return f.duration_ms; })
+              .filter(function(d) { return d !== null; });
+
+            if (deltas.length > 0) {
+              var sum = deltas.reduce(function(a, b) { return a + b; }, 0);
+              data.mean_frame_delta = sum / deltas.length;
+              data.max_frame_delta = Math.max.apply(null, deltas);
+            } else {
+              data.mean_frame_delta = null;
+              data.max_frame_delta = null;
+            }
+          }
+        };
+        timeline.push(custom_animation_trial);
+
+        // =========================================================================
+        // Survey text to collect participant's description of what they saw
+        // =========================================================================
+        var survey = {
+          type: jsPsychSurveyText,
+          questions: [
+            {prompt: 'What did you see? (please answer with more than 20 words)', name: 'verbal_report', rows:5, columns: 40, required: true},
+          ],
+          on_start: function() {
+            const contentEl = document.querySelector('.jspsych-content');
+            if (contentEl) {
+              savedScale = contentEl.style.transform;
+              contentEl.style.transform = 'none';
+            }
+          },
+          on_load: function() {
+            const form = document.querySelector('#jspsych-survey-text-form');
+            const input = form ? form.querySelector('textarea, input') : null;
+            const nextButton = form ? form.querySelector('#jspsych-survey-text-next') : null;
+
+            if (!form || !input || !nextButton) {
+              return;
+            }
+
+            const errorEl = document.createElement('p');
+            errorEl.id = 'survey-text-validation-message';
+            errorEl.style.color = '#ff7f7f';
+            errorEl.style.marginTop = '0.5em';
+            errorEl.style.display = 'none';
+            form.insertBefore(errorEl, nextButton);
+
+            form.addEventListener('submit', function(e) {
+              const response = input.value.trim();
+              const wordCount = response.split(/\s+/).filter(Boolean).length;
+              const charCount = response.length;
+
+              if (wordCount <= 20 || charCount <= 100) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                errorEl.textContent = 'Please enter more than 20 words and more than 100 characters.';
+                errorEl.style.display = 'block';
+                input.focus();
+              } else {
+                errorEl.style.display = 'none';
+              }
+            }, true);
+          },
+          on_finish: function() {
+            const contentEl = document.querySelector('.jspsych-content');
+            if (contentEl && savedScale) {
+              contentEl.style.transform = savedScale;
+            }
+          }
+        };
+        timeline.push(survey);
+
+        // =========================================================================
+        // Number of shapes in the video
+        // =========================================================================
+        var shape_number = {
+          type: jsPsychSurveyText,
+          questions: [
+            {prompt: 'How many individual shapes were in the video?',
+            name: 'num_shapes',
+            required: true,
+            rows: 2,
+            columns: 10,}
+          ],
+          on_load: function() {
+            var input = document.querySelector('input[name="#jspsych-survey-text-response-0"]');
+            if (input) {
+              input.type = 'number';
+              input.min = '0';
+              input.max = '100';
+            }
+          },
+          on_start: function() {
+            const contentEl = document.querySelector('.jspsych-content');
+            if (contentEl) {
+              savedScale = contentEl.style.transform;
+              contentEl.style.transform = 'none';
+            }
+          },
+          on_finish: function() {
+            const contentEl = document.querySelector('.jspsych-content');
+            if (contentEl && savedScale) {
+              contentEl.style.transform = savedScale;
+            }
+          }
+        };
+        timeline.push(shape_number);
+
+        // =========================================================================
+        // Select image matching sequence they saw
+        // =========================================================================
+        var image_selection = {
+          type: jsPsychHtmlButtonResponse,
+          stimulus: `<p>In each of the options below, four frames from a video are ordered from top to bottom.</p>
+          <p>Which option shows the frames in video that you saw?</p>
+          `,
+          choices: function() {
+            var thumbs = buildThumbnails();
+            return [
+              `<img src="${thumbs.illusionThumb}" width="150">`,
+              `<img src="${thumbs.gradedThumb}" width="150">`,
+              `<img src="${thumbs.discreteThumb}" width="150">`,
+            ];
+          },
+          on_start: function() {
+            const contentEl = document.querySelector('.jspsych-content');
+            if (contentEl) {
+              savedScale = contentEl.style.transform;
+              contentEl.style.transform = 'none';
+            }
+          },
+          on_finish: function() {
+            const contentEl = document.querySelector('.jspsych-content');
+            if (contentEl && savedScale) {
+              contentEl.style.transform = savedScale;
+            }
+          }
+        };
+        timeline.push(image_selection);
+
+        // =========================================================================
+        // Closing instructions + exit fullscreen
+        // =========================================================================
+        var closing_survey = {
+          type: jsPsychSurveyText,
+          questions: [
+            {prompt: 'Any comments for us to improve the study?', name: 'comments', rows:5, columns: 40, required: true},
+            {prompt: 'If you have to guess, what do you think the experiment was about?', name: 'debrief_question', rows:5, columns: 40, required: true},
+          ],
+          on_start: function() {
+            const contentEl = document.querySelector('.jspsych-content');
+            if (contentEl) {
+              savedScale = contentEl.style.transform;
+              contentEl.style.transform = 'none';
+            }
+          },
+          on_finish: function() {
+            const contentEl = document.querySelector('.jspsych-content');
+            if (contentEl && savedScale) {
+              contentEl.style.transform = savedScale;
+            }
+          }
+        };
+        timeline.push(closing_survey);
+
+        var closing_instructions = {
+          type: jsPsychHtmlKeyboardResponse,
+          stimulus: `
+            <p>Thank you for participating in this experiment!</p>
+            <p>You may now exit fullscreen mode.</p>
+            <p>Press any key to finish.</p>
+          `,
+          on_start: function() {
+            const contentEl = document.querySelector('.jspsych-content');
+            if (contentEl) {
+              savedScale = contentEl.style.transform;
+              contentEl.style.transform = 'none';
+            }
+          },
+          on_finish: function() {
+            const contentEl = document.querySelector('.jspsych-content');
+            if (contentEl && savedScale) {
+              contentEl.style.transform = savedScale;
+            }
+          }
+        };
+        timeline.push(closing_instructions);
+        return timeline;
+      };
+
+      // =========================================================================
+      // Run experiment
+      // =========================================================================
+      /* start the experiment - no seeded randomization needed for a demo */
+      timeline = makeTimeline();
+      jsPsych.run(timeline);
+  </script>
+</html>

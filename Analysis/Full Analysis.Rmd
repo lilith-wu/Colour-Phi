@@ -1,0 +1,189 @@
+---
+title: "Full Preregistered analysis"
+output: html_document
+date: "2026-08-17"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Prepare dataframe
+#### Import dataframe
+```{r}
+data <- read.csv("full_data.csv")
+data$movement <- as.logical(data$movement)
+data$colour_change <- as.logical(data$colour_change)
+data$valid <- as.logical(data$valid)
+```
+#### Clean dataframe: 
+remove rows where animation misses frames, where report does not feature geometric shapes 
+```{r}
+frame_cols <- c("frame_1_duration_ms", "frame_2_duration_ms",
+                "frame_3_duration_ms", "frame_4_duration_ms")
+data <- data[complete.cases(data[, frame_cols]), ]
+data <- data[data$valid == TRUE, ]
+```
+
+#### Separate illusion, baseline, phi conditions 
+```{r}
+illusion_condition <- data[data$condition == "illusion_2frames", ]
+baseline_condition <- data[data$condition == "baseline_2frames", ]
+phi_condition <- data[data$condition == "phi_2frames", ]
+illusion_trials <- nrow(illusion_condition)
+baseline_trials <- nrow(baseline_condition)
+phi_trials <- nrow(phi_condition)
+```
+
+## Hypotheses
+All hypotheses are tested with proportions z tests, with two-sided alternative hypotheses. 
+
+### Colour phi report task: comparisons between illusion & baseline conditions 
+#### H1 [motion reports]: proportions of motion codes.  
+```{r}
+illusion_motion <- sum(illusion_condition$movement == TRUE)
+baseline_motion <- sum(baseline_condition$movement == TRUE)
+
+h1 <- prop.test(x = c(illusion_motion, baseline_motion),
+                n = c(illusion_trials, baseline_trials),
+                correct = FALSE)
+print(h1)
+```
+```{r}
+h1$conf.int
+```
+
+
+#### H2 [colour change reports]: proportions of colour change codes 
+```{r}
+illusion_change <- illusion_condition[illusion_condition$colour_change == TRUE, ]
+baseline_change <- baseline_condition[baseline_condition$colour_change == TRUE, ]
+illusion_change_trials = nrow(illusion_change)
+baseline_change_trials = nrow(baseline_change)
+
+h2 <- prop.test(x = c(illusion_change_trials, baseline_change_trials),
+                n = c(illusion_trials, baseline_trials),
+                correct = FALSE)
+print(h2)
+```
+
+#### H3 [discrete colour change reports]: proportions of dicrete codes, out of colour change responses only 
+ [This hypothesis cannot be tested because there are no trials in the baseline condition reporting colour change at all.] 
+```{r}
+illusion_discrete <- sum(illusion_change$change_type == "Discrete")
+baseline_discrete <- sum(baseline_change$change_type == "Discrete")
+
+# h3 <- prop.test(x = c(illusion_discrete, baseline_discrete),
+#                n = c(illusion_change_trials, baseline_change_trials),
+#                correct = FALSE)
+#print(h3)
+
+```
+
+#### H4 [shape number perception]: proportions of single shape reports out of those reporting one or two 
+```{r}
+illusion_valid <- illusion_condition[illusion_condition$shape_number %in% c("1", "2"), ]
+baseline_valid <- baseline_condition[baseline_condition$shape_number %in% c("1", "2"), ]
+illusion_valid_trials <- nrow(illusion_valid)
+baseline_valid_trials <- nrow(baseline_valid)
+
+illusion_one_shape <- sum(illusion_valid$shape_number == "1")
+baseline_one_shape <- sum(baseline_valid$shape_number == "1")
+
+h4 <- prop.test(x = c(illusion_one_shape, baseline_one_shape),
+                n = c(illusion_valid_trials, baseline_valid_trials),
+                correct = FALSE)
+print(h4)
+```
+
+#### H5 [frame sequence type]: proportions of choosing four frame sequences
+```{r}
+illusion_matched_motion <- illusion_condition[illusion_condition$matched_stimuli %in% c("4frames_gradual",
+                                                                                        "4frames_discrete"), ]
+baseline_matched_motion <- baseline_condition[baseline_condition$matched_stimuli %in% c("4frames_gradual",
+                                                                                        "4frames_discrete"), ]
+ 
+illusion_matched_motion_trials <- nrow(illusion_matched_motion)
+baseline_matched_motion_trials <- nrow(baseline_matched_motion)
+
+h5 <- prop.test(x = c(illusion_matched_motion_trials, baseline_matched_motion_trials),
+                n = c(illusion_trials, baseline_trials),
+                correct = FALSE)
+print(h5)
+```
+
+
+#### H6 [frame sequence colour change]: proportions of choosing dicrete change frame sequence, among those choosing continous ones
+```{r}
+illusion_matched_discrete <- sum(illusion_matched_motion$matched_stimuli == "4frames_discrete")
+baseline_matched_discrete <- sum(baseline_matched_motion$matched_stimuli == "4frames_discrete")
+
+h6 <- prop.test(x = c(illusion_matched_discrete, baseline_matched_discrete),
+                n = c(illusion_matched_motion_trials, baseline_matched_motion_trials),
+                correct = FALSE)
+print(h6)
+```
+
+### Phi motion report task: comparisons between illusion & phi motion conditions.
+#### H7 [motion reports, comparison with phi motion]: proportions of motion codes.  
+```{r}
+phi_motion <- sum(phi_condition$movement == TRUE)
+
+h7 <- prop.test(x = c(illusion_motion, phi_motion),
+                n = c(illusion_trials, phi_trials),
+                correct = FALSE)
+print(h7)
+```
+
+#### H8 [shape number perception, comparison with phi motion]: proportions of single shape reports out of those reporting one or two 
+```{r}
+phi_valid <- phi_condition[phi_condition$shape_number %in% c("1", "2"), ]
+phi_valid_trials <- nrow(phi_valid)
+phi_one_shape <- sum(phi_valid$shape_number == "1")
+
+
+h8 <- prop.test(x = c(illusion_one_shape, phi_one_shape),
+                n = c(illusion_valid_trials, phi_valid_trials),
+                correct = FALSE)
+print(h8)
+```
+
+#### H9 [frame sequence type, comparison with phi motion]: proportions of choosing four frame sequences
+```{r}
+phi_matched_motion <- phi_condition[phi_condition$matched_stimuli %in% c("motion_4frames",
+                                                                                        "discrete_4frames"), ]
+phi_matched_motion_trials <- nrow(phi_matched_motion)
+
+
+h9 <- prop.test(x = c(illusion_matched_motion_trials, phi_matched_motion_trials),
+                n = c(illusion_trials, phi_trials),
+                correct = FALSE)
+print(h9)
+```
+
+## Corrections for multiple comparisons (?)
+#### H1 and H7 [motion reports]
+```{r}
+raw_p <- c(illusion_vs_baseline = h1$p.value,
+           illusion_vs_phi = h7$p.value)
+
+adjusted_p <- p.adjust(raw_p, method = "holm")
+adjusted_p
+```
+#### H4 and H8 [shape number perception]
+```{r}
+raw_p <- c(illusion_vs_baseline = h4$p.value,
+           illusion_vs_phi = h8$p.value)
+
+adjusted_p <- p.adjust(raw_p, method = "holm")
+adjusted_p
+```
+#### H5 and H9 [frame sequence type]
+```{r}
+raw_p <- c(illusion_vs_baseline = h5$p.value,
+           illusion_vs_phi = h9$p.value)
+
+adjusted_p <- p.adjust(raw_p, method = "holm")
+adjusted_p
+```
+

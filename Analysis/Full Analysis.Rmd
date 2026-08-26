@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ## Prepare dataframe
 #### Import dataframe
 ```{r}
-data <- read.csv("full_data.csv")
+data <- read.csv("Coded_Response_Data.csv")
 data$movement <- as.logical(data$movement)
 data$colour_change <- as.logical(data$colour_change)
 data$valid <- as.logical(data$valid)
